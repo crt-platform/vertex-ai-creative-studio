@@ -31,26 +31,19 @@ class SessionAuthMiddleware(BaseHTTPMiddleware):
             request.scope["SESSION_USER"] = self._username
             return await call_next(request)
 
-        # No session - check Basic auth header
-        auth = request.headers.get("Authorization", "")
-        if auth.startswith("Basic "):
-            if self._validate_basic_auth(auth[6:]):
-                # Create session
-                token = self._create_session()
-                response = await call_next(request)
-                response.set_cookie(
-                    key=_SESSION_COOKIE,
-                    value=token,
-                    max_age=int(_SESSION_DURATION.total_seconds()),
-                    httponly=True,
-                    secure=True,
-                    samesite="Lax"
-                )
-                request.scope["SESSION_USER"] = self._username
-                return response
-
-        # No valid auth - challenge
-        return self._challenge()
+        # No session - create one automatically (no challenge needed)
+        token = self._create_session()
+        response = await call_next(request)
+        response.set_cookie(
+            key=_SESSION_COOKIE,
+            value=token,
+            max_age=int(_SESSION_DURATION.total_seconds()),
+            httponly=True,
+            secure=True,
+            samesite="Lax"
+        )
+        request.scope["SESSION_USER"] = self._username
+        return response
 
     def _validate_basic_auth(self, encoded: str) -> bool:
         try:
