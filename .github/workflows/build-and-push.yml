@@ -1,4 +1,4 @@
-name: Deploy to Lab
+name: Build and Deploy to Lab
 
 on:
   push:
@@ -10,9 +10,47 @@ on:
       - '.github/workflows/build-and-push.yml'
   workflow_dispatch:
 
+env:
+  AWS_REGION: eu-south-2
+  ECR_REGISTRY: 911540681189.dkr.ecr.eu-south-2.amazonaws.com
+  ECR_REPO: skl/crt-creative-studio
+  ECS_CLUSTER: crt-lab
+
 jobs:
-  deploy:
-    uses: crt-platform/infrastructure/.github/workflows/_deploy-docker-ecs.yml@main
-    with:
-      service_name: crt-creative-studio
-    secrets: inherit
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+          docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO }}:latest
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO }}:${{ github.sha }}
+
+      - name: Update ECS service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service crt-lab-crt-creative-studio \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
