@@ -14,16 +14,6 @@
 * limitations under the License.
 */
 
-terraform {
-  required_providers {
-    google = {
-      version = "~> 6.49"
-    }
-    google-beta = {
-      version = "~> 6.49"
-    }
-  }
-}
 provider "google" {
   project = var.project_id
   region  = var.region

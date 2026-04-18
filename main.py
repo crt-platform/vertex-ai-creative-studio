@@ -76,11 +76,22 @@ import pages.character_sheet
 import pages.brand_adherence
 from workflows.retro_games import page as retro_games
 from state.state import AppState
+from middleware_session_auth import SessionAuthMiddleware
+from middleware_cf_access import CloudflareAccessMiddleware
 
 
 class UserInfo(BaseModel):
     email: str | None
     agent: str | None
+
+
+if os.getenv("ENABLE_CF_ACCESS", "false").lower() == "true":
+    app.add_middleware(CloudflareAccessMiddleware)
+elif os.getenv("ENABLE_BASIC_AUTH", "false").lower() == "true":
+    basic_user = os.getenv("BASIC_AUTH_USER", "")
+    basic_pass = os.getenv("BASIC_AUTH_PASS", "")
+    if basic_user and basic_pass:
+        app.add_middleware(SessionAuthMiddleware, username=basic_user, password=basic_pass)
 
 
 # FastAPI server with Mesop
@@ -93,21 +104,52 @@ async def favicon():
     return FileResponse("assets/favicon.ico")
 
 
+@app.get("/health", include_in_schema=False)
+async def health():
+    return {"status": "ok"}
+
+
 # Define allowed origins for CORS
 
 
 from starlette.middleware.base import BaseHTTPMiddleware
 
-class ForwardedHostMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        forwarded_host = request.headers.get("X-Forwarded-Host")
-        if forwarded_host:
-            # Overwrite the host so that Mesop's CSRF check matches the Origin header
-            request.scope["headers"] = [
-                (k, v) if k != b"host" else (k, forwarded_host.encode())
-                for k, v in request.scope["headers"]
-            ]
-        return await call_next(request)
+import logging as _mw_logging
+_mw_log = _mw_logging.getLogger("mw.fwdhost")
+_mw_log.setLevel(_mw_logging.INFO)
+
+
+class ForwardedHostMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        headers = dict(scope.get("headers", []))
+        xfh = headers.get(b"x-forwarded-host")
+        xfp = headers.get(b"x-forwarded-proto")
+        path = scope.get("path", "")
+        method = scope.get("method", "")
+        if method == "POST":
+            origin = headers.get(b"origin", b"").decode()
+            host = headers.get(b"host", b"").decode()
+            _mw_log.warning(
+                "MW POST path=%s origin=%s host=%s xfp=%s scheme_in=%s",
+                path, origin, host, xfp, scope.get("scheme"),
+            )
+        if xfh or xfp:
+            new_headers = []
+            for k, v in scope["headers"]:
+                if k == b"host" and xfh:
+                    new_headers.append((k, xfh))
+                else:
+                    new_headers.append((k, v))
+            scope = dict(scope)
+            scope["headers"] = new_headers
+            if xfp:
+                scope["scheme"] = xfp.decode()
+        await self.app(scope, receive, send)
 
 app.add_middleware(ForwardedHostMiddleware)
 
@@ -191,7 +233,11 @@ async def add_global_csp(request: Request, call_next):
 
 @app.middleware("http")
 async def set_request_context(request: Request, call_next):
-    user_email = request.headers.get("X-Goog-Authenticated-User-Email")
+    user_email = (
+        request.scope.get("CF_USER_EMAIL")
+        or request.scope.get("BASIC_AUTH_USER")
+        or request.headers.get("X-Goog-Authenticated-User-Email")
+    )
     if not user_email:
         user_email = "anonymous@google.com"
     if user_email.startswith("accounts.google.com:"):

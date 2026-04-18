@@ -217,6 +217,10 @@ class Default:
         ],
     )
 
+    # Cloudflare Access Zero Trust
+    CF_TEAM_DOMAIN: str = os.environ.get("CF_TEAM_DOMAIN", "")
+    CF_AUD: str = os.environ.get("CF_AUD", "")
+
 
 def get_config_path(rel_path: str) -> str:
     """Returns the path to a configuration file, respecting GMCS_OVERRIDE_PATH."""
