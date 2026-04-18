@@ -51,6 +51,6 @@ jobs:
         run: |
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
-            --service crt-lab-crt-creative-studio \
+            --service crt-creative-studio \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
