@@ -15,5 +15,4 @@ jobs:
     uses: crt-platform/infrastructure/.github/workflows/_deploy-docker-ecs.yml@main
     with:
       service_name: crt-creative-studio
-      repo: crt-platform/vertex-ai-creative-studio
     secrets: inherit
