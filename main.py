@@ -87,7 +87,7 @@ class UserInfo(BaseModel):
 
 if os.getenv("ENABLE_CF_ACCESS", "false").lower() == "true":
     app.add_middleware(CloudflareAccessMiddleware)
-elif os.getenv("ENABLE_BASIC_AUTH", "false").lower() == "true":
+else:
     basic_user = os.getenv("BASIC_AUTH_USER", "")
     basic_pass = os.getenv("BASIC_AUTH_PASS", "")
     if basic_user and basic_pass:
