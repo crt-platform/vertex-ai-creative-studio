@@ -12,7 +12,7 @@ on:
 
 jobs:
   deploy:
-    uses: crt-platform/infrastructure/.github/workflows/_deploy-docker-ecs.yml@feature/fargate-migration
+    uses: crt-platform/infrastructure/.github/workflows/_deploy-docker-ecs.yml@71cbe8b171d0b8535db29af6c7aa51943f11a2b9
     with:
       service_name: crt-creative-studio
       repo: crt-platform/vertex-ai-creative-studio
